@@ -1,17 +1,23 @@
+import os
 import asyncio
+import authentication
+from dotenv import load_dotenv
 from engine import StorageEngine
 
 storage = StorageEngine()
+load_dotenv()
 
 async def handle_request(reader, writer):
     client_address = writer.get_extra_info("peername")
     print(f"New connection: {client_address} has connected.")
+    authenticated = False
     
     writer.write(f"Connected to ChronosKV as {client_address}.\n".encode("utf-8"))
+    writer.write(f"Please authenticate yourself with command AUTH, if no password exists, AUTH <password> will set the password as <password>.\n".encode("utf-8"))
     await writer.drain()
 
     try:
-        while True:            
+        while True:
             command_bytes = await reader.readline()
             
             if not command_bytes:
@@ -21,29 +27,75 @@ async def handle_request(reader, writer):
             command = command_bytes.decode("utf-8").strip()
             parts = command.split(" ", 2)
             
-            if parts[0].upper() == "SET" and len(parts) == 3:
-                result = await storage.set(parts[1], parts[2])
-                writer.write(f"{result}\n".encode("utf-8"))
-            elif parts[0].upper() == "GET" and len(parts) == 2:
-                result = storage.get(parts[1])
-                writer.write(f"{result}\n".encode("utf-8"))
-            elif parts[0].upper() == "DEL" and len(parts) == 2:
-                result = await storage.delete(parts[1])
-                writer.write(f"{result}\n".encode("utf-8"))
-            elif parts[0].upper() == "MSET":
-                pairs = command.split(" ", 1)[1]
-                if pairs.strip() == "":
-                    writer.write("Invalid Command.\n".encode("utf-8"))
+            if not authenticated:
+                if parts[0].upper() == "AUTH":
+                    if len(parts) < 2:
+                         writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                         await writer.drain()
+                         continue
+                         
+                    if "CHRONOS_KV_HASH" in os.environ:
+                        password_input = command.split(" ", 1)[1]
+                        authenticated = authentication.verify_password(password_input)
+                        
+                        if authenticated:
+                            writer.write("Authenticated Successfully.\n".encode("utf-8"))
+                            await writer.drain()
+                            continue
+                        else:
+                            writer.write("Incorrect password, try again\n".encode("utf-8"))
+                            await writer.drain()
+                            continue
+                    else:
+                        password_input = command.split(" ", 1)[1]
+                        writer.write(f"No existing password found, setting {password_input} as password.\n".encode("utf-8"))
+                        authentication.hash_password(password_input)
+                        authenticated = True
+                        continue
                 else:
-                    result = await storage.mset(pairs)
+                    writer.write("Please authenticate before proceeding\n".encode("utf-8"))
+                    await writer.drain()
+                    continue
+            
+            if parts[0].upper() == "SET":
+                if len(parts) < 3:
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    result = await storage.set(parts[1], parts[2])
+                    writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "GET":
+                if len(parts) < 2:
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    result = storage.get(parts[1])
+                    writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "DEL":
+                if len(parts) < 3:
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    result = await storage.delete(parts[1])
+                    writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "MSET":
+                pairs = command.split(" ", 1)
+                if len(pairs) < 2 or pairs[1].strip() == "":
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    result = await storage.mset(pairs[1])
                     writer.write(f"{result}\n".encode("utf-8"))
             elif parts[0].upper() == "MGET":
-                keys = command.split(" ", 1)[1]
-                if keys.strip() == "":
-                    writer.write("Invalid Command.\n".encode("utf-8"))
+                keys = command.split(" ", 1)
+                if len(keys) < 2 or keys[1].strip() == "":
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
                 else:
-                    result = await storage.mget(keys)
-                    writer.write(f"{result}\n"}.encode("utf-8"))
+                    result = await storage.mget(keys[1])
+                    writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "AUTH":
+                new_password = command.split(" ", 1)
+                if len(new_password) < 2 or new_password[1].strip() == "":
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    authentication.hash_password(new_password[1])
+                    writer.write(f"Password changed to {new_password[1]}.\n".encode("utf-8"))
             else:
                 writer.write("Invalid Command.\n".encode("utf-8"))
                 
