@@ -1,3 +1,4 @@
+import os
 import asyncio
 import threading
 
@@ -11,25 +12,41 @@ class StorageEngine:
             with open("log.txt", "a") as log:
                 log.write(f"{operation} {key} {value}\n")
         
-    async def set(self, key, value=None):
+    async def set(self, key, value):
         self._state[key] = value
         
         await asyncio.to_thread(self.append_log, "SET", key, value)
-        return "OK.\n"
+        return "OK."
         
     def get(self, key):
         if key in self._state:
-            return f"{self._state.get(key)}\n"
+            return self._state.get(key)
         else:
-            return "Key not found.\n"
+            return "None"
         
     async def delete(self, key):
         if key in self._state:
             self._state.pop(key)
             
             await asyncio.to_thread(self.append_log, "DEL", key)
-            return "OK.\n"
-        return "Key not found.\n"
+            return "OK."
+        return "Key not found."
+        
+    async def mset(self, pairs_string):
+        pairs = pairs_string.split(" ")
+        if len(pairs) % 2 != 0:
+            return("Missing value for last key.")
+            
+        for i in range(0, len(pairs), 2):
+            await self.set(pairs[i], pairs[i+1])
+        return "OK."
+            
+    async def mget(self, keys_string):
+        values = []
+        keys = keys_string.split(" ")
+        for key in keys:
+            values.append(self.get(key))
+        return " ".join(values)
         
     def get_all_data(self):
         return self._state.copy()
@@ -57,12 +74,9 @@ class StorageEngine:
                 return False
                 
     def compact_logs(self, file):
-        with open(file, "w") as log:
-            log.write("")
+        with open("log.tmp", "w") as log:
+            for key, value in self._state.items():
+                log.write(f"SET {key} {value}\n")
+        os.replace("log.tmp", "log.txt")
             
-        temp = self._state.copy()
-        
-        for key, value in temp.items():
-            self.append_log("SET", key, value)
-            
-        return "Logs compacted.\n"
+        return "Logs compacted."

@@ -23,13 +23,27 @@ async def handle_request(reader, writer):
             
             if parts[0].upper() == "SET" and len(parts) == 3:
                 result = await storage.set(parts[1], parts[2])
-                writer.write(result.encode("utf-8"))
+                writer.write(f"{result}\n".encode("utf-8"))
             elif parts[0].upper() == "GET" and len(parts) == 2:
                 result = storage.get(parts[1])
-                writer.write(result.encode("utf-8"))
+                writer.write(f"{result}\n".encode("utf-8"))
             elif parts[0].upper() == "DEL" and len(parts) == 2:
                 result = await storage.delete(parts[1])
-                writer.write(result.encode("utf-8"))
+                writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "MSET":
+                pairs = command.split(" ", 1)[1]
+                if pairs.strip() == "":
+                    writer.write("Invalid Command.\n".encode("utf-8"))
+                else:
+                    result = await storage.mset(pairs)
+                    writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "MGET":
+                keys = command.split(" ", 1)[1]
+                if keys.strip() == "":
+                    writer.write("Invalid Command.\n".encode("utf-8"))
+                else:
+                    result = await storage.mget(keys)
+                    writer.write(f"{result}\n"}.encode("utf-8"))
             else:
                 writer.write("Invalid Command.\n".encode("utf-8"))
                 
