@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 from engine import StorageEngine
 
 storage = StorageEngine()
+
+if not os.path.exists(".env"):
+    with open(".env", "w") as file:
+        file.write("")
+
 load_dotenv()
 
 async def handle_request(reader, writer):
@@ -34,7 +39,9 @@ async def handle_request(reader, writer):
                          await writer.drain()
                          continue
                          
-                    if "CHRONOS_KV_HASH" in os.environ:
+                    load_dotenv()
+                         
+                    if os.getenv("CHRONOS_KV_HASH") is not None:
                         password_input = command.split(" ", 1)[1]
                         authenticated = authentication.verify_password(password_input)
                         
@@ -70,7 +77,7 @@ async def handle_request(reader, writer):
                     result = storage.get(parts[1])
                     writer.write(f"{result}\n".encode("utf-8"))
             elif parts[0].upper() == "DEL":
-                if len(parts) < 3:
+                if len(parts) < 2:
                     writer.write("Incorrect Command Usage.\n".encode("utf-8"))
                 else:
                     result = await storage.delete(parts[1])
@@ -89,13 +96,6 @@ async def handle_request(reader, writer):
                 else:
                     result = await storage.mget(keys[1])
                     writer.write(f"{result}\n".encode("utf-8"))
-            elif parts[0].upper() == "AUTH":
-                new_password = command.split(" ", 1)
-                if len(new_password) < 2 or new_password[1].strip() == "":
-                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
-                else:
-                    authentication.hash_password(new_password[1])
-                    writer.write(f"Password changed to {new_password[1]}.\n".encode("utf-8"))
             else:
                 writer.write("Invalid Command.\n".encode("utf-8"))
                 
@@ -103,8 +103,8 @@ async def handle_request(reader, writer):
             
     except asyncio.CancelledError:
         print(f"Task cancelled by client {client_address}")
-    except Exception as e:
-        print(f"Error occured: {e}")
+    #except Exception as e:
+    #    print(f"Error occured: {e}")
     finally:
         writer.close()
         await writer.wait_closed()

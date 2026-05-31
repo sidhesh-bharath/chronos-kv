@@ -1,7 +1,7 @@
 import os
 import hashlib
 import secrets
-from dotenv import find_dotenv, load_dotenv, set_key
+from dotenv import find_dotenv, set_key
 
 dotenv_file = find_dotenv()
 
