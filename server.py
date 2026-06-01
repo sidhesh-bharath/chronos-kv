@@ -23,6 +23,9 @@ async def handle_request(reader, writer):
 
     try:
         while True:
+            writer.write("> ".encode("utf-8"))
+            await writer.drain()
+            
             command_bytes = await reader.readline()
             
             if not command_bytes:
@@ -96,6 +99,13 @@ async def handle_request(reader, writer):
                 else:
                     result = await storage.mget(keys[1])
                     writer.write(f"{result}\n".encode("utf-8"))
+            elif parts[0].upper() == "EXPIRE":
+                if len(parts) < 2:
+                    writer.write("Incorrect Command Usage.\n".encode("utf-8"))
+                else:
+                    result = await storage.expire(parts[1], parts[2])
+                    writer.write(f"{result}\n".encode("utf-8"))
+                
             else:
                 writer.write("Invalid Command.\n".encode("utf-8"))
                 
@@ -110,13 +120,13 @@ async def handle_request(reader, writer):
         await writer.wait_closed()
             
 async def main():
-    log_status = storage.load_from_log("log.txt")
+    log_status = storage.load_from_log()
     server = await asyncio.start_server(handle_request, "127.0.0.1", 8888)
     
     server_address = server.sockets[0].getsockname()
     print(f"Server running on {server_address}")
     if log_status:
-        storage.compact_logs("log.txt")
+        storage.compact_logs()
         print("Compacted logs and recovered storage successfully.")
     else:
         print("No log file found or error occured during log recovery. Proceeding with a fresh storage instance.")

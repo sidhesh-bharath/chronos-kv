@@ -35,7 +35,7 @@ class StorageEngine:
     async def mset(self, pairs_string):
         pairs = pairs_string.split(" ")
         if len(pairs) % 2 != 0:
-            return("Missing value for last key.")
+            return "Missing value for last key."
             
         for i in range(0, len(pairs), 2):
             await self.set(pairs[i], pairs[i+1])
@@ -47,11 +47,24 @@ class StorageEngine:
         for key in keys:
             values.append(self.get(key))
         return " ".join(values)
+    
+    async def sleeper(self, key, seconds):
+        await asyncio.sleep(seconds)
+        self._state.pop(key)
+        await asyncio.to_thread(self.append_log, "DEL", key)
+    
+    async def expire(self, key, seconds):
+        if key in self._state:
+            asyncio.create_task(self.sleeper(key, seconds))
+            return "OK."
+            
+        else:
+            return "Key not found."
         
     def get_all_data(self):
         return self._state.copy()
         
-    def load_from_log(self, file):
+    def load_from_log(self):
         try:
             with open("log.txt", "r") as log:
                 for line in log:
@@ -73,7 +86,7 @@ class StorageEngine:
                 file.write("")
                 return False
                 
-    def compact_logs(self, file):
+    def compact_logs(self):
         with open("log.tmp", "w") as log:
             for key, value in self._state.items():
                 log.write(f"SET {key} {value}\n")
