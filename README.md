@@ -4,5 +4,5 @@ A lightweight, high-performance distributed key-value store built from scratch i
 
 ## Usage
 
-Start server.py in a terminal
+Start server.py in a terminal.
 Run `nc 127.0.0.1 8888` in another termnial to connect as a client
